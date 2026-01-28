@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ශ්‍රී ලංකා දේපල | Sri Lanka Properties</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        .property-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .property-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.8);
+        }
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        #map {
+            height: 500px;
+            width: 100%;
+            border-radius: 0.5rem;
+        }
+        .admin-login {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-blue-600">🏠 <span id="nav-title">ශ්‍රී ලංකා දේපල</span></h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <select id="language" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="si">සිංහල</option>
+                        <option value="en">English</option>
+                        <option value="ta">தமிழ்</option>
+                    </select>
+                    <button onclick="showAdminLogin()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                        <span id="admin-btn">Admin</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 class="text-4xl md:text-5xl font-bold mb-4" id="hero-title">ඔබේ සිහින නිවස සොයා ගන්න</h2>
+            <p class="text-xl mb-8" id="hero-subtitle">ශ්‍රී ලංකාවේ හොඳම දේපල එකම තැනක</p>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- View Toggle -->
+        <div class="flex justify-center mb-6 space-x-4">
+            <button onclick="showListView()" id="list-view-btn" class="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold">
+                📋 <span id="list-view-text">ලැයිස්තුව</span>
+            </button>
+            <button onclick="showMapView()" id="map-view-btn" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold">
+                🗺️ <span id="map-view-text">සිතියම</span>
+            </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h3 class="text-xl font-bold mb-4" id="filter-title">සෙවුම් පහසුකම්</h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2" id="type-label">වර්ගය</label>
+                    <select id="filter-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="all" id="all-option">සියල්ල</option>
+                        <option value="sale" id="sale-option">විකිණීමට</option>
+                        <option value="rent" id="rent-option">කුලියට</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2" id="property-type-label">දේපල වර්ගය</label>
+                    <select id="filter-property-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="all" id="all-property-option">සියල්ල</option>
+                        <option value="house" id="house-option">නිවස</option>
+                        <option value="apartment" id="apartment-option">මහල් නිවාස</option>
+                        <option value="land" id="land-option">ඉඩම</option>
+                        <option value="commercial" id="commercial-option">වාණිජ</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2" id="location-label">ප්‍රදේශය</label>
+                    <select id="filter-location" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="all" id="all-location-option">සියලු ප්‍රදේශ</option>
+                        <option value="colombo">කොළඹ / Colombo</option>
+                        <option value="kandy">මහනුවර / Kandy</option>
+                        <option value="galle">ගාල්ල / Galle</option>
+                        <option value="jaffna">යාපනය / Jaffna</option>
+                        <option value="negombo">මීගමුව / Negombo</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2" id="price-label">මිල පරාසය</label>
+                    <select id="filter-price" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="all" id="all-price-option">සියල්ල</option>
+                        <option value="0-5000000">< 50 ලක්ෂ</option>
+                        <option value="5000000-10000000">50-100 ලක්ෂ</option>
+                        <option value="10000000-20000000">1-2 කෝටි</option>
+                        <option value="20000000-999999999">> 2 කෝටි</option>
+                    </select>
+                </div>
+            </div>
+            <button onclick="applyFilters()" class="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+                <span id="search-btn">සොයන්න</span>
+            </button>
+        </div>
+
+        <!-- List View -->
+        <div id="list-view" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Properties will be dynamically loaded here -->
+        </div>
+
+        <!-- Map View -->
+        <div id="map-view" class="hidden">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Property Detail Modal -->
+    <div id="property-modal" class="modal">
+        <div class="modal-content bg-white rounded-lg p-6 m-4 relative">
+            <button onclick="closePropertyModal()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-3xl font-bold">&times;</button>
+            <div id="property-detail-content"></div>
+        </div>
+    </div>
+
+    <!-- Admin Login Modal -->
+    <div id="admin-login-modal" class="modal">
+        <div class="bg-white rounded-lg p-8 m-4 max-w-md w-full">
+            <h2 class="text-2xl font-bold mb-6 text-center" id="admin-login-title">Admin Login</h2>
+            <div class="space-y-4">
+                <input type="text" id="admin-username" placeholder="Username" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <input type="password" id="admin-password" placeholder="Password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <button onclick="adminLogin()" class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold">
+                    <span id="login-btn">Login</span>
+                </button>
+                <button onclick="closeAdminLogin()" class="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold">
+                    <span id="cancel-btn">Cancel</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Panel Modal -->
+    <div id="admin-panel-modal" class="modal">
+        <div class="modal-content bg-white rounded-lg p-6 m-4 relative max-w-4xl">
+            <button onclick="closeAdminPanel()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-3xl font-bold">&times;</button>
+            <h2 class="text-2xl font-bold mb-6" id="admin-panel-title">දේපල කළමනාකරණය</h2>
+            
+            <button onclick="showAddPropertyForm()" class="mb-4 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold">
+                ➕ <span id="add-property-btn">නව දේපලක් එකතු කරන්න</span>
+            </button>
+
+            <div id="add-property-form" class="hidden mb-6 p-4 border border-gray-300 rounded-lg">
+                <h3 class="text-xl font-bold mb-4" id="add-form-title">නව දේපලක් එකතු කරන්න</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" id="new-title-si" placeholder="මාතෘකාව (සිංහල)" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <input type="text" id="new-title-en" placeholder="Title (English)" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <input type="text" id="new-title-ta" placeholder="தலைப்பு (தமிழ்)" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <select id="new-type" class="px-3 py-2 border border-gray-300 rounded-lg">
+                        <option value="sale">විකිණීමට / For Sale</option>
+                        <option value="rent">කුලියට / For Rent</option>
+                    </select>
+                    <select id="new-property-type" class="px-3 py-2 border border-gray-300 rounded-lg">
+                        <option value="house">නිවස / House</option>
+                        <option value="apartment">මහල් නිවාස / Apartment</option>
+                        <option value="land">ඉඩම / Land</option>
+                        <option value="commercial">වාණිජ / Commercial</option>
+                    </select>
+                    <input type="number" id="new-price" placeholder="මිල / Price (LKR)" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <input type="text" id="new-location" placeholder="ප්‍රදේශය / Location" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <input type="number" id="new-bedrooms" placeholder="නිදන කාමර / Bedrooms" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <input type="number" id="new-bathrooms" placeholder="නාන කාමර / Bathrooms" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <input type="number" id="new-sqft" placeholder="වර්ග අඩි / Sqft" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <input type="number" step="0.000001" id="new-lat" placeholder="Latitude" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <input type="number" step="0.000001" id="new-lng" placeholder="Longitude" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <textarea id="new-description-si" placeholder="විස්තරය (සිංහල)" class="col-span-2 px-3 py-2 border border-gray-300 rounded-lg" rows="3"></textarea>
+                    <textarea id="new-description-en" placeholder="Description (English)" class="col-span-2 px-3 py-2 border border-gray-300 rounded-lg" rows="3"></textarea>
+                    <textarea id="new-description-ta" placeholder="விளக்கம் (தமிழ்)" class="col-span-2 px-3 py-2 border border-gray-300 rounded-lg" rows="3"></textarea>
+                    <input type="text" id="new-image" placeholder="Image URL" class="col-span-2 px-3 py-2 border border-gray-300 rounded-lg">
+                </div>
+                <div class="mt-4 flex space-x-4">
+                    <button onclick="saveNewProperty()" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold">
+                        💾 Save
+                    </button>
+                    <button onclick="hideAddPropertyForm()" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 font-semibold">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+
+            <div id="admin-properties-list" class="space-y-4">
+                <!-- Admin property list will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Inquiry Form Modal -->
+    <div id="inquiry-modal" class="modal">
+        <div class="bg-white rounded-lg p-8 m-4 max-w-md w-full">
+            <h2 class="text-2xl font-bold mb-6" id="inquiry-title">විමසීම් ෆෝමය</h2>
+            <div class="space-y-4">
+                <input type="text" id="inquiry-name" placeholder="ඔබේ නම / Name" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                <input type="email" id="inquiry-email" placeholder="Email" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                <input type="tel" id="inquiry-phone" placeholder="දුරකථන අංකය / Phone" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                <textarea id="inquiry-message" placeholder="පණිවිඩය / Message" class="w-full px-4 py-2 border border-gray-300 rounded-lg" rows="4"></textarea>
+                <button onclick="submitInquiry()" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+                    📧 <span id="submit-inquiry-btn">යවන්න</span>
+                </button>
+                <button onclick="closeInquiryModal()" class="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold">
+                    <span id="close-inquiry-btn">වසන්න</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sample Property Data
+        let properties = [
+            {
+                id: 1,
+                title: { si: "සුන්දර නිවස කොළඹ 7", en: "Beautiful House in Colombo 7", ta: "கொழும்பு 7 இல் அழகான வீடு" },
+                type: "sale",
+                propertyType: "house",
+                price: 15000000,
+                location: "colombo",
+                locationName: { si: "කොළඹ 7", en: "Colombo 7", ta: "கொழும்பு 7" },
+                bedrooms: 4,
+                bathrooms: 3,
+                sqft: 2500,
+                description: {
+                    si: "කොළඹ 7 හි නවීන පහසුකම් සහිත සුන්දර නිවසක්. පාර්කිං ඉඩ, උද්‍යානය සහ ආරක්ෂාව ඇත.",
+                    en: "Beautiful modern house in Colombo 7 with all amenities. Parking, garden, and security available.",
+                    ta: "அனைத்து வசதிகளுடன் கொழும்பு 7 இல் அழகான நவீன வீடு. பார்க்கிங், தோட்டம் மற்றும் பாதுகாப்பு உள்ளது."
+                },
+                image: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800",
+                lat: 6.9147,
+                lng: 79.8774
+            },
+            {
+                id: 2,
+                title: { si: "මහල් නිවාස වෙලිකද", en: "Apartment in Wellawatte", ta: "வெலிகடையில் அபார்ட்மெண்ட்" },
+                type: "rent",
+                propertyType: "apartment",
+                price: 50000,
+                location: "colombo",
+                locationName: { si: "වෙලිකද", en: "Wellawatte", ta: "வெலிகடை" },
+                bedrooms: 2,
+                bathrooms: 2,
+                sqft: 1200,
+                description: {
+                    si: "මුහුදු දසුනක් සහිත නවීන මහල් නිවාසයක්. කුලිය මාසිකව රු. 50,000.",
+                    en: "Modern apartment with sea view. Monthly rent Rs. 50,000.",
+                    ta: "கடல் காட்சியுடன் நவீன அபார்ட்மெண்ட். மாதாந்திர வாடகை ரூ. 50,000."
+                },
+                image: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800",
+                lat: 6.8719,
+                lng: 79.8585
+            },
+            {
+                id: 3,
+                title: { si: "ඉඩම මහනුවර", en: "Land in Kandy", ta: "கண்டியில் நிலம்" },
+                type: "sale",
+                propertyType: "land",
+                price: 8000000,
+                location: "kandy",
+                locationName: { si: "මහනුවර", en: "Kandy", ta: "கண்டி" },
+                bedrooms: 0,
+                bathrooms: 0,
+                sqft: 10000,
+                description: {
+                    si: "මහනුවර නගරයට ආසන්නව පර්චස් 25ක ඉඩමක්. ඉදිකිරීම් සඳහා පරිපූර්ණයි.",
+                    en: "25 perches land close to Kandy city. Perfect for construction.",
+                    ta: "கண்டி நகரத்திற்கு அருகில் 25 பர்ச்சஸ் நிலம். கட்டுமானத்திற்கு ஏற்றது."
+                },
+                image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800",
+                lat: 7.2906,
+                lng: 80.6337
+            },
+            {
+                id: 4,
+                title: { si: "වාණිජ ගොඩනැගිල්ල ගාල්ල", en: "Commercial Building in Galle", ta: "காலியில் வணிக கட்டிடம்" },
+                type: "sale",
+                propertyType: "commercial",
+                price: 25000000,
+                location: "galle",
+                locationName: { si: "ගාල්ල", en: "Galle", ta: "காலி" },
+                bedrooms: 0,
+                bathrooms: 4,
+                sqft: 4000,
+                description: {
+                    si: "ගාල්ල කොටුව අසලින් තට්ටු 3ක වාණිජ ගොඩනැගිල්ලක්. ව්‍යාපාර සඳහා හොඳයි.",
+                    en: "3-storey commercial building near Galle Fort. Good for business.",
+                    ta: "காலி கோட்டைக்கு அருகில் 3 மாடி வணிக கட்டிடம். வணிகத்திற்கு நல்லது."
+                },
+                image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800",
+                lat: 6.0535,
+                lng: 80.2210
+            },
+            {
+                id: 5,
+                title: { si: "සුඛෝපභෝගී විලා මීගමුව", en: "Luxury Villa in Negombo", ta: "நீர்கொழும்பில் ஆடம்பர வில்லா" },
+                type: "rent",
+                propertyType: "house",
+                price: 150000,
+                location: "negombo",
+                locationName: { si: "මීගමුව", en: "Negombo", ta: "நீர்கொழும்பு" },
+                bedrooms: 5,
+                bathrooms: 4,
+                sqft: 3500,
+                description: {
+                    si: "මුහුදු තීරයට ආසන්න සුඛෝපභෝගී විලා. පෞද්ගලික තටාකයක් සහිත.",
+                    en: "Luxury villa close to beach. With private pool.",
+                    ta: "கடற்கரைக்கு அருகில் ஆடம்பர வில்லா. தனிப்பட்ட நீச்சல் குளத்துடன்."
+                },
+                image: "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800",
+                lat: 7.2008,
+                lng: 79.8358
+            },
+            {
+                id: 6,
+                title: { si: "නිවස යාපනය", en: "House in Jaffna", ta: "யாழ்ப்பாணத்தில் வீடு" },
+                type: "sale",
+                propertyType: "house",
+                price: 12000000,
+                location: "jaffna",
+                locationName: { si: "යාපනය", en: "Jaffna", ta: "யாழ்ப்பாணம்" },
+                bedrooms: 3,
+                bathrooms: 2,
+                sqft: 1800,
+                description: {
+                    si: "යාපනය නගර මධ්‍යයේ නව නිවසක්. ප්‍රශස්ත ස්ථානයක.",
+                    en: "New house in Jaffna city center. Prime location.",
+                    ta: "யாழ்ப்பாண நகர மையத்தில் புதிய வீடு. முதன்மை இடம்."
+                },
+                image: "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800",
+                lat: 9.6615,
+                lng: 80.0255
+            }
+        ];
+
+        let currentLanguage = 'si';
+        let map = null;
+        let markers = [];
+        let filteredProperties = [...properties];
+        let currentPropertyIdForInquiry = null;
+
+        // Translations
+        const translations = {
+            si: {
+                navTitle: "ශ්‍රී ලංකා දේපල",
+                heroTitle: "ඔබේ සිහින නිවස සොයා ගන්න",
+                heroSubtitle: "ශ්‍රී ලංකාවේ හොඳම දේපල එකම තැනක",
+                listView: "ලැයිස්තුව",
+                mapView: "සිතියම",
+                filterTitle: "සෙවුම් පහසුකම්",
+                typeLabel: "වර්ගය",
+                allOption: "සියල්ල",
+                saleOption: "විකිණීමට",
+                rentOption: "කුලියට",
+                propertyTypeLabel: "දේපල වර්ගය",
+                allPropertyOption: "සියල්ල",
+                houseOption: "නිවස",
+                apartmentOption: "මහල් නිවාස",
+                landOption: "ඉඩම",
+                commercialOption: "වාණිජ",
+                locationLabel: "ප්‍රදේශය",
+                allLocationOption: "සියලු ප්‍රදේශ",
+                priceLabel: "මිල පරාසය",
+                allPriceOption: "සියල්ල",
+                searchBtn: "සොයන්න",
+                forSale: "විකිණීමට",
+                forRent: "කුලියට",
+                bedrooms: "නිදන කාමර",
+                bathrooms: "නාන කාමර",
+                sqft: "වර්ග අඩි",
+                viewDetails: "විස්තර බලන්න",
+                inquire: "විමසන්න",
+                whatsapp: "WhatsApp",
+                adminBtn: "Admin",
+                adminLoginTitle: "Admin Login",
+                loginBtn: "Login",
+                cancelBtn: "Cancel",
+                adminPanelTitle: "දේපල කළමනාකරණය",
+                addPropertyBtn: "නව දේපලක් එකතු කරන්න",
+                inquiryTitle: "විමසීම් ෆෝමය",
+                submitInquiryBtn: "යවන්න",
+                closeInquiryBtn: "වසන්න"
+            },
+            en: {
+                navTitle: "Sri Lanka Properties",
+                heroTitle: "Find Your Dream Home",
+                heroSubtitle: "Best Properties in Sri Lanka in One Place",
+                listView: "List View",
+                mapView: "Map View",
+                filterTitle: "Search Filters",
+                typeLabel: "Type",
+                allOption: "All",
+                saleOption: "For Sale",
+                rentOption: "For Rent",
+                propertyTypeLabel: "Property Type",
+                allPropertyOption: "All",
+                houseOption: "House",
+                apartmentOption: "Apartment",
+                landOption: "Land",
+                commercialOption: "Commercial",
+                locationLabel: "Location",
+                allLocationOption: "All Locations",
+                priceLabel: "Price Range",
+                allPriceOption: "All",
+                searchBtn: "Search",
+                forSale: "For Sale",
+                forRent: "For Rent",
+                bedrooms: "Bedrooms",
+                bathrooms: "Bathrooms",
+                sqft: "Sqft",
+                viewDetails: "View Details",
+                inquire: "Inquire",
+                whatsapp: "WhatsApp",
+                adminBtn: "Admin",
+                adminLoginTitle: "Admin Login",
+                loginBtn: "Login",
+                cancelBtn: "Cancel",
+                adminPanelTitle: "Property Management",
+                addPropertyBtn: "Add New Property",
+                inquiryTitle: "Inquiry Form",
+                submitInquiryBtn: "Submit",
+                closeInquiryBtn: "Close"
+            },
+            ta: {
+                navTitle: "இலங்கை சொத்துக்கள்",
+                heroTitle: "உங்கள் கனவு வீட்டைக் கண்டறியவும்",
+                heroSubtitle: "இலங்கையின் சிறந்த சொத்துக்கள் ஒரே இடத்தில்",
+                listView: "பட்டியல் காட்சி",
+                mapView: "வரைபட காட்சி",
+                filterTitle: "தேடல் வடிகட்டிகள்",
+                typeLabel: "வகை",
+                allOption: "அனைத்தும்",
+                saleOption: "விற்பனைக்கு",
+                rentOption: "வாடகைக்கு",
+                propertyTypeLabel: "சொத்து வகை",
+                allPropertyOption: "அனைத்தும்",
+                houseOption: "வீடு",
+                apartmentOption: "அபார்ட்மெண்ட்",
+                landOption: "நிலம்",
+                commercialOption: "வணிக",
+                locationLabel: "இடம்",
+                allLocationOption: "அனைத்து இடங்களும்",
+                priceLabel: "விலை வரம்பு",
+                allPriceOption: "அனைத்தும்",
+                searchBtn: "தேடு",
+                forSale: "விற்பனைக்கு",
+                forRent: "வாடகைக்கு",
+                bedrooms: "படுக்கையறைகள்",
+                bathrooms: "குளியலறைகள்",
+                sqft: "சதுர அடி",
+                viewDetails: "விவரங்களைப் பார்க்க",
+                inquire: "விசாரிக்க",
+                whatsapp: "WhatsApp",
+                adminBtn: "Admin",
+                adminLoginTitle: "Admin Login",
+                loginBtn: "Login",
+                cancelBtn: "Cancel",
+                adminPanelTitle: "சொத்து மேலாண்மை",
+                addPropertyBtn: "புதிய சொத்தைச் சேர்க்கவும்",
+                inquiryTitle: "விசாரணை படிவம்",
+                submitInquiryBtn: "சமர்ப்பிக்கவும்",
+                closeInquiryBtn: "மூடு"
+            }
+        };
+
+        // Language Change Handler
+        document.getElementById('language').addEventListener('change', function() {
+            currentLanguage = this.value;
+            updateLanguage();
+        });
+
+        function updateLanguage() {
+            const t = translations[currentLanguage];
+            document.getElementById('nav-title').textContent = t.navTitle;
+            document.getElementById('hero-title').textContent = t.heroTitle;
+            document.getElementById('hero-subtitle').textContent = t.heroSubtitle;
+            document.getElementById('list-view-text').textContent = t.listView;
+            document.getElementById('map-view-text').textContent = t.mapView;
+            document.getElementById('filter-title').textContent = t.filterTitle;
+            document.getElementById('type-label').textContent = t.typeLabel;
+            document.getElementById('all-option').textContent = t.allOption;
+            document.getElementById('sale-option').textContent = t.saleOption;
+            document.getElementById('rent-option').textContent = t.rentOption;
+            document.getElementById('property-type-label').textContent = t.propertyTypeLabel;
+            document.getElementById('all-property-option').textContent = t.allPropertyOption;
+            document.getElementById('house-option').textContent = t.houseOption;
+            document.getElementById('apartment-option').textContent = t.apartmentOption;
+            document.getElementById('land-option').textContent = t.landOption;
+            document.getElementById('commercial-option').textContent = t.commercialOption;
+            document.getElementById('location-label').textContent = t.locationLabel;
+            document.getElementById('all-location-option').textContent = t.allLocationOption;
+            document.getElementById('price-label').textContent = t.priceLabel;
+            document.getElementById('all-price-option').textContent = t.allPriceOption;
+            document.getElementById('search-btn').textContent = t.searchBtn;
+            document.getElementById('admin-btn').textContent = t.adminBtn;
+            document.getElementById('admin-login-title').textContent = t.adminLoginTitle;
+            document.getElementById('login-btn').textContent = t.loginBtn;
+            document.getElementById('cancel-btn').textContent = t.cancelBtn;
+            document.getElementById('admin-panel-title').textContent = t.adminPanelTitle;
+            document.getElementById('add-property-btn').textContent = t.addPropertyBtn;
+            document.getElementById('inquiry-title').textContent = t.inquiryTitle;
+            document.getElementById('submit-inquiry-btn').textContent = t.submitInquiryBtn;
+            document.getElementById('close-inquiry-btn').textContent = t.closeInquiryBtn;
+            
+            renderProperties();
+        }
+
+        // Render Properties
+        function renderProperties() {
+            const listView = document.getElementById('list-view');
+            listView.innerHTML = '';
+            
+            const t = translations[currentLanguage];
+            
+            filteredProperties.forEach(property => {
+                const card = document.createElement('div');
+                card.className = 'property-card bg-white rounded-lg shadow-md overflow-hidden cursor-pointer';
+                card.onclick = () => showPropertyDetail(property.id);
+                
+                const priceFormatted = new Intl.NumberFormat('en-LK', {
+                    style: 'currency',
+                    currency: 'LKR',
+                    minimumFractionDigits: 0
+                }).format(property.price);
+                
+                card.innerHTML = `
+                    <img src="${property.image}" alt="${property.title[currentLanguage]}" class="w-full h-48 object-cover">
+                    <div class="p-4">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="text-xl font-bold text-gray-800">${property.title[currentLanguage]}</h3>
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold ${property.type === 'sale' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}">
+                                ${property.type === 'sale' ? t.forSale : t.forRent}
+                            </span>
+                        </div>
+                        <p class="text-2xl font-bold text-blue-600 mb-2">${priceFormatted}</p>
+                        <p class="text-gray-600 mb-3">📍 ${property.locationName[currentLanguage]}</p>
+                        ${property.bedrooms > 0 ? `
+                        <div class="flex space-x-4 text-sm text-gray-600 mb-3">
+                            <span>🛏️ ${property.bedrooms} ${t.bedrooms}</span>
+                            <span>🚿 ${property.bathrooms} ${t.bathrooms}</span>
+                            <span>📐 ${property.sqft} ${t.sqft}</span>
+                        </div>
+                        ` : `
+                        <div class="flex space-x-4 text-sm text-gray-600 mb-3">
+                            <span>📐 ${property.sqft} ${t.sqft}</span>
+                        </div>
+                        `}
+                        <button class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+                            ${t.viewDetails}
+                        </button>
+                    </div>
+                `;
+                
+                listView.appendChild(card);
+            });
+        }
+
+        // Show Property Detail
+        function showPropertyDetail(id) {
+            const property = properties.find(p => p.id === id);
+            if (!property) return;
+            
+            const t = translations[currentLanguage];
+            const priceFormatted = new Intl.NumberFormat('en-LK', {
+                style: 'currency',
+                currency: 'LKR',
+                minimumFractionDigits: 0
+            }).format(property.price);
+            
+            const content = document.getElementById('property-detail-content');
+            content.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <img src="${property.image}" alt="${property.title[currentLanguage]}" class="w-full rounded-lg">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-start mb-4">
+                            <h2 class="text-3xl font-bold text-gray-800">${property.title[currentLanguage]}</h2>
+                            <span class="px-4 py-2 rounded-full text-sm font-semibold ${property.type === 'sale' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}">
+                                ${property.type === 'sale' ? t.forSale : t.forRent}
+                            </span>
+                        </div>
+                        <p class="text-3xl font-bold text-blue-600 mb-4">${priceFormatted}</p>
+                        <p class="text-lg text-gray-600 mb-4">📍 ${property.locationName[currentLanguage]}</p>
+                        ${property.bedrooms > 0 ? `
+                        <div class="grid grid-cols-3 gap-4 mb-6">
+                            <div class="text-center p-3 bg-gray-100 rounded-lg">
+                                <div class="text-2xl mb-1">🛏️</div>
+                                <div class="font-semibold">${property.bedrooms}</div>
+                                <div class="text-sm text-gray-600">${t.bedrooms}</div>
+                            </div>
+                            <div class="text-center p-3 bg-gray-100 rounded-lg">
+                                <div class="text-2xl mb-1">🚿</div>
+                                <div class="font-semibold">${property.bathrooms}</div>
+                                <div class="text-sm text-gray-600">${t.bathrooms}</div>
+                            </div>
+                            <div class="text-center p-3 bg-gray-100 rounded-lg">
+                                <div class="text-2xl mb-1">📐</div>
+                                <div class="font-semibold">${property.sqft}</div>
+                                <div class="text-sm text-gray-600">${t.sqft}</div>
+                            </div>
+                        </div>
+                        ` : `
+                        <div class="mb-6">
+                            <div class="text-center p-3 bg-gray-100 rounded-lg inline-block">
+                                <div class="text-2xl mb-1">📐</div>
+                                <div class="font-semibold">${property.sqft}</div>
+                                <div class="text-sm text-gray-600">${t.sqft}</div>
+                            </div>
+                        </div>
+                        `}
+                        <p class="text-gray-700 mb-6">${property.description[currentLanguage]}</p>
+                        <div class="space-y-3">
+                            <button onclick="showInquiryForm(${property.id})" class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+                                📧 ${t.inquire}
+                            </button>
+                            <a href="https://wa.me/94771234567?text=${encodeURIComponent('Hi, I am interested in: ' + property.title.en)}" target="_blank" class="block w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-center">
+                                💬 ${t.whatsapp}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('property-modal').classList.add('active');
+        }
+
+        function closePropertyModal() {
+            document.getElementById('property-modal').classList.remove('active');
+        }
+
+        // Inquiry Form
+        function showInquiryForm(propertyId) {
+            currentPropertyIdForInquiry = propertyId;
+            closePropertyModal();
+            document.getElementById('inquiry-modal').classList.add('active');
+        }
+
+        function closeInquiryModal() {
+            document.getElementById('inquiry-modal').classList.remove('active');
+            document.getElementById('inquiry-name').value = '';
+            document.getElementById('inquiry-email').value = '';
+            document.getElementById('inquiry-phone').value = '';
+            document.getElementById('inquiry-message').value = '';
+        }
+
+        function submitInquiry() {
+            const name = document.getElementById('inquiry-name').value;
+            const email = document.getElementById('inquiry-email').value;
+            const phone = document.getElementById('inquiry-phone').value;
+            const message = document.getElementById('inquiry-message').value;
+            
+            if (!name || !email || !phone) {
+                alert('Please fill all required fields / කරුණාකර සියලු අනිවාර්ය තොරතුරු පුරවන්න');
+                return;
+            }
+            
+            const property = properties.find(p => p.id === currentPropertyIdForInquiry);
+            
+            // In a real application, this would send to a backend
+            console.log('Inquiry submitted:', { name, email, phone, message, property: property.title.en });
+            alert('Thank you! We will contact you soon. / ස්තූතියි! අපි ඉක්මනින් ඔබව සම්බන්ධ කරමු.');
+            closeInquiryModal();
+        }
+
+        // Filters
+        function applyFilters() {
+            const type = document.getElementById('filter-type').value;
+            const propertyType = document.getElementById('filter-property-type').value;
+            const location = document.getElementById('filter-location').value;
+            const priceRange = document.getElementById('filter-price').value;
+            
+            filteredProperties = properties.filter(property => {
+                let match = true;
+                
+                if (type !== 'all' && property.type !== type) match = false;
+                if (propertyType !== 'all' && property.propertyType !== propertyType) match = false;
+                if (location !== 'all' && property.location !== location) match = false;
+                
+                if (priceRange !== 'all') {
+                    const [min, max] = priceRange.split('-').map(Number);
+                    if (property.price < min || property.price > max) match = false;
+                }
+                
+                return match;
+            });
+            
+            renderProperties();
+            if (map) {
+                updateMapMarkers();
+            }
+        }
+
+        // View Toggle
+        function showListView() {
+            document.getElementById('list-view').classList.remove('hidden');
+            document.getElementById('map-view').classList.add('hidden');
+            document.getElementById('list-view-btn').className = 'px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold';
+            document.getElementById('map-view-btn').className = 'px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold';
+        }
+
+        function showMapView() {
+            document.getElementById('list-view').classList.add('hidden');
+            document.getElementById('map-view').classList.remove('hidden');
+            document.getElementById('list-view-btn').className = 'px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold';
+            document.getElementById('map-view-btn').className = 'px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold';
+            
+            if (!map) {
+                initMap();
+            }
+        }
+
+        // Map Functions
+        function initMap() {
+            map = L.map('map').setView([7.8731, 80.7718], 8);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            updateMapMarkers();
+        }
+
+        function updateMapMarkers() {
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            
+            filteredProperties.forEach(property => {
+                const marker = L.marker([property.lat, property.lng]).addTo(map);
+                const priceFormatted = new Intl.NumberFormat('en-LK', {
+                    style: 'currency',
+                    currency: 'LKR',
+                    minimumFractionDigits: 0
+                }).format(property.price);
+                
+                marker.bindPopup(`
+                    <div class="text-center">
+                        <img src="${property.image}" style="width: 200px; height: 120px; object-fit: cover; border-radius: 0.5rem; margin-bottom: 0.5rem;">
+                        <h3 class="font-bold">${property.title[currentLanguage]}</h3>
+                        <p class="text-blue-600 font-bold">${priceFormatted}</p>
+                        <button onclick="showPropertyDetail(${property.id})" class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">
+                            ${translations[currentLanguage].viewDetails}
+                        </button>
+                    </div>
+                `);
+                
+                markers.push(marker);
+            });
+        }
+
+        // Admin Functions
+        function showAdminLogin() {
+            document.getElementById('admin-login-modal').classList.add('active');
+        }
+
+        function closeAdminLogin() {
+            document.getElementById('admin-login-modal').classList.remove('active');
+        }
+
+        function adminLogin() {
+            const username = document.getElementById('admin-username').value;
+            const password = document.getElementById('admin-password').value;
+            
+            // Simple authentication (in real app, use proper backend authentication)
+            if (username === 'admin' && password === 'admin123') {
+                closeAdminLogin();
+                showAdminPanel();
+            } else {
+                alert('Invalid credentials! / වැරදි විස්තර!');
+            }
+        }
+
+        function showAdminPanel() {
+            loadAdminProperties();
+            document.getElementById('admin-panel-modal').classList.add('active');
+        }
+
+        function closeAdminPanel() {
+            document.getElementById('admin-panel-modal').classList.remove('active');
+        }
+
+        function loadAdminProperties() {
+            const list = document.getElementById('admin-properties-list');
+            list.innerHTML = '';
+            
+            properties.forEach(property => {
+                const item = document.createElement('div');
+                item.className = 'bg-gray-100 p-4 rounded-lg flex justify-between items-center';
+                item.innerHTML = `
+                    <div>
+                        <h4 class="font-bold">${property.title.en}</h4>
+                        <p class="text-sm text-gray-600">${property.locationName.en} - ${property.type === 'sale' ? 'For Sale' : 'For Rent'}</p>
+                    </div>
+                    <button onclick="deleteProperty(${property.id})" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                        🗑️ Delete
+                    </button>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function showAddPropertyForm() {
+            document.getElementById('add-property-form').classList.remove('hidden');
+        }
+
+        function hideAddPropertyForm() {
+            document.getElementById('add-property-form').classList.add('hidden');
+        }
+
+        function saveNewProperty() {
+            const newProperty = {
+                id: properties.length + 1,
+                title: {
+                    si: document.getElementById('new-title-si').value,
+                    en: document.getElementById('new-title-en').value,
+                    ta: document.getElementById('new-title-ta').value
+                },
+                type: document.getElementById('new-type').value,
+                propertyType: document.getElementById('new-property-type').value,
+                price: parseInt(document.getElementById('new-price').value),
+                location: document.getElementById('new-location').value.toLowerCase(),
+                locationName: {
+                    si: document.getElementById('new-location').value,
+                    en: document.getElementById('new-location').value,
+                    ta: document.getElementById('new-location').value
+                },
+                bedrooms: parseInt(document.getElementById('new-bedrooms').value) || 0,
+                bathrooms: parseInt(document.getElementById('new-bathrooms').value) || 0,
+                sqft: parseInt(document.getElementById('new-sqft').value),
+                description: {
+                    si: document.getElementById('new-description-si').value,
+                    en: document.getElementById('new-description-en').value,
+                    ta: document.getElementById('new-description-ta').value
+                },
+                image: document.getElementById('new-image').value || 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800',
+                lat: parseFloat(document.getElementById('new-lat').value),
+                lng: parseFloat(document.getElementById('new-lng').value)
+            };
+            
+            properties.push(newProperty);
+            filteredProperties = [...properties];
+            renderProperties();
+            loadAdminProperties();
+            hideAddPropertyForm();
+            
+            // Clear form
+            document.getElementById('new-title-si').value = '';
+            document.getElementById('new-title-en').value = '';
+            document.getElementById('new-title-ta').value = '';
+            document.getElementById('new-price').value = '';
+            document.getElementById('new-location').value = '';
+            document.getElementById('new-bedrooms').value = '';
+            document.getElementById('new-bathrooms').value = '';
+            document.getElementById('new-sqft').value = '';
+            document.getElementById('new-description-si').value = '';
+            document.getElementById('new-description-en').value = '';
+            document.getElementById('new-description-ta').value = '';
+            document.getElementById('new-image').value = '';
+            document.getElementById('new-lat').value = '';
+            document.getElementById('new-lng').value = '';
+            
+            alert('Property added successfully! / දේපල සාර්ථකව එකතු කරන ලදී!');
+        }
+
+        function deleteProperty(id) {
+            if (confirm('Are you sure you want to delete this property? / ඔබට මෙම දේපල මකා දැමීමට අවශ්‍යද?')) {
+                properties = properties.filter(p => p.id !== id);
+                filteredProperties = [...properties];
+                renderProperties();
+                loadAdminProperties();
+            }
+        }
+
+        // Initialize
+        renderProperties();
+    </script>
+</body>
+</html>
